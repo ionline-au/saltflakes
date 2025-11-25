@@ -1,0 +1,16 @@
+# Ignore everything
+*
+
+# But not these directories (need to unignore parent paths)
+!wp-content/
+!wp-content/plugins/
+!wp-content/plugins/ionline-custom-plugin-version-2/
+!wp-content/plugins/ionline-website-plugin/
+
+# Include only these specific files
+!wp-content/plugins/ionline-custom-plugin-version-2/ionline-custom-plugin-version-2.php
+!wp-content/plugins/ionline-website-plugin/ionline-custom-plugin.php
+!CLAIDE.md
+
+# Keep .gitignore itself
+!.gitignore
