@@ -2266,84 +2266,8 @@ function save_custom_fields_woo($order_id)
 
 }
 
-// Check that the delivery date is not empty when it's selected
-if ($_SERVER['REMOTE_ADDR'] == '144.6.113.133') {
-
-    add_action('woocommerce_checkout_process', 'check_datetimepicker_field_matt');
-    function check_datetimepicker_field_matt()
-    {
-        date_default_timezone_set('Australia/Brisbane');
-
-        $_POST['delivery_date'] = '17-10-2025';
-        // $hourNow = date('H');
-        $hourNow = 14;
-
-        $delivery_date = date('Y-m-d', strtotime(str_replace('/', '-', $_POST['delivery_date'])));
-        $yesterday = date('Y-m-d', strtotime('-1 day'));
-        $tomorrow = date('Y-m-d', strtotime('+1 day'));
-        $today = date('Y-m-d');
-
-        $deliveryDateOfWeekAsN = date('N', strtotime($delivery_date)); // monday is 1, tuesday is 2,  wednesday is 3,  thursday is 4,  friday is 5,  saturday is 6, sunday is 7
-
-        // there has to be a delivery date
-        if (empty($_POST['delivery_date'])) {
-            wc_add_notice(__('You must enter a delivery/pickup date'), 'error');
-        }
-
-        // Validate date format (this example uses d/m/Y format, adjust as needed)
-        if (strtotime($delivery_date) === false || strtotime($delivery_date) === 0) {
-            wc_add_notice(__('Invalid date - please use this format DD/MM/YYYY example ' . date('01/01/Y')), 'error');
-        }
-
-        echo '<pre>';
-        print_r('today is ' . date('l \t\h\e jS \o\f F') . ' which is day ' . date('N') . ' of the week');
-        echo '<br>';
-        print_r('$delivery_date: ' . $delivery_date);
-        echo '<br>';
-        print_r('$yesterday: ' . $yesterday);
-        echo '<br>';
-        print_r('$today: ' . $today);
-        echo '<br>';
-        print_r('$tomorrow: ' . $tomorrow);
-        echo '<br>';
-        print_r('$deliveryDateOfWeekAsN: ' . $deliveryDateOfWeekAsN);
-        echo '<br>';
-        print_r('$hourNow: ' . $hourNow);
-        echo '<br>';
-        print_r('delivery_date_POST: ' . $_POST['delivery_date']);
-        echo '<br>';
-        print_r('str_$delivery_date: ' . strtotime($delivery_date));
-        echo '<br>';
-        print_r('str_$yesterday: ' . strtotime($yesterday));
-        echo '<br>';
-        print_r('full_date: ' . date('d/m/Y H:i:s'));
-        echo '<br>';
-        print_r('date_date(): ' . date('Y-m-d'));
-        echo '<br>';
-
-        // check past delivery dates
-        if (strtotime($delivery_date) < strtotime($yesterday)) {
-            wc_add_notice(__('You cannot select a date in the past.<br/>Please set the delivery date to a future date '), 'error');
-        }
-
-        // disallow saturdays and sundays
-        if ($deliveryDateOfWeekAsN == 6 || $deliveryDateOfWeekAsN == 7) {
-            echo '<br>';
-            print_r('test hit for weekends');
-            echo '<br>';
-            wc_add_notice(__('You select a ' . date('l', strtotime($delivery_date)) . ' delivery - weekends are not available for delivery.', ''), 'error');
-        }
-
-        // if the delivery date is today and it past 1pm
-
-
-        exit();
-
-    }
-
-} else {
-
-    add_action('woocommerce_checkout_process', 'check_datetimepicker_field');
+// Validate delivery date at checkout
+add_action('woocommerce_checkout_process', 'check_datetimepicker_field');
     function check_datetimepicker_field()
     {
         date_default_timezone_set('Australia/Brisbane');
@@ -2452,8 +2376,6 @@ if ($_SERVER['REMOTE_ADDR'] == '144.6.113.133') {
             }
         }
     }
-
-}
 
 // Display field value on the order edit page
 add_action('woocommerce_admin_order_data_after_billing_address', 'my_custom_checkout_field_display_admin_order_meta', 10, 1);
