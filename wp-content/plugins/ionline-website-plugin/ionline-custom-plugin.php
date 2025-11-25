@@ -2268,114 +2268,114 @@ function save_custom_fields_woo($order_id)
 
 // Validate delivery date at checkout
 add_action('woocommerce_checkout_process', 'check_datetimepicker_field');
-    function check_datetimepicker_field()
-    {
-        date_default_timezone_set('Australia/Brisbane');
+function check_datetimepicker_field()
+{
+    date_default_timezone_set('Australia/Brisbane');
 
-        // Must have a delivery date
-        if (!isset($_POST['delivery_date']) || empty($_POST['delivery_date'])) {
-            wc_add_notice(__('You must enter a delivery/pickup date'), 'error');
-            return;
-        }
+    // Must have a delivery date
+    if (!isset($_POST['delivery_date']) || empty($_POST['delivery_date'])) {
+        wc_add_notice(__('You must enter a delivery/pickup date'), 'error');
+        return;
+    }
 
-        // Parse the delivery date
-        $delivery_date_raw = str_replace('/', '-', $_POST['delivery_date']);
-        $delivery_date = date('Y-m-d', strtotime($delivery_date_raw));
+    // Parse the delivery date
+    $delivery_date_raw = str_replace('/', '-', $_POST['delivery_date']);
+    $delivery_date = date('Y-m-d', strtotime($delivery_date_raw));
 
-        // Validate date format
-        if (strtotime($delivery_date_raw) === false || strtotime($delivery_date_raw) === 0) {
-            wc_add_notice(__('Invalid date - please use this format dd/mm/yyyy example ' . date('01/01/Y')), 'error');
-            return;
-        }
+    // Validate date format
+    if (strtotime($delivery_date_raw) === false || strtotime($delivery_date_raw) === 0) {
+        wc_add_notice(__('Invalid date - please use this format dd/mm/yyyy example ' . date('01/01/Y')), 'error');
+        return;
+    }
 
-        // Get current time info
-        $hour_now = (int) date('H');
-        $today_day_of_week = (int) date('w'); // 0=Sun, 1=Mon, ..., 5=Fri, 6=Sat
+    // Get current time info
+    $hour_now = (int) date('H');
+    $today_day_of_week = (int) date('w'); // 0=Sun, 1=Mon, ..., 5=Fri, 6=Sat
 
-        // Get delivery date day of week (using 'w' for consistency: 0=Sun, 6=Sat)
-        $delivery_day_of_week = (int) date('w', strtotime($delivery_date));
+    // Get delivery date day of week (using 'w' for consistency: 0=Sun, 6=Sat)
+    $delivery_day_of_week = (int) date('w', strtotime($delivery_date));
 
-        // Validate: delivery date cannot be Saturday (6) or Sunday (0)
-        if ($delivery_day_of_week == 0 || $delivery_day_of_week == 6) {
-            wc_add_notice(__('Weekends are not available for delivery. Please select a weekday (Monday-Friday).'), 'error');
-            return;
-        }
+    // Validate: delivery date cannot be Saturday (6) or Sunday (0)
+    if ($delivery_day_of_week == 0 || $delivery_day_of_week == 6) {
+        wc_add_notice(__('Weekends are not available for delivery. Please select a weekday (Monday-Friday).'), 'error');
+        return;
+    }
 
-        /**
-         * Calculate minimum allowed delivery date based on:
-         * - Friday after 1pm, Saturday, Sunday → Monday is minimum
-         * - Weekday after 1pm → +2 days minimum (skip tomorrow)
-         * - Before 1pm → tomorrow is minimum
-         */
-        $min_delivery_date = new DateTime('today', new DateTimeZone('Australia/Brisbane'));
+    /**
+     * Calculate minimum allowed delivery date based on:
+     * - Friday after 1pm, Saturday, Sunday → Monday is minimum
+     * - Weekday after 1pm → +2 days minimum (skip tomorrow)
+     * - Before 1pm → tomorrow is minimum
+     */
+    $min_delivery_date = new DateTime('today', new DateTimeZone('Australia/Brisbane'));
 
-        // Friday after 1pm, Saturday, or Sunday → Monday is minimum
-        if (($today_day_of_week == 5 && $hour_now >= 13) || $today_day_of_week == 6 || $today_day_of_week == 0) {
-            // Calculate days until next Monday
-            if ($today_day_of_week == 5) { // Friday after 1pm
-                $min_delivery_date->modify('+3 days');
-            } elseif ($today_day_of_week == 6) { // Saturday
-                $min_delivery_date->modify('+2 days');
-            } else { // Sunday
-                $min_delivery_date->modify('+1 day');
-            }
-        }
-        // Weekday (Mon-Thu) after 1pm → +2 days minimum
-        elseif ($hour_now >= 13) {
+    // Friday after 1pm, Saturday, or Sunday → Monday is minimum
+    if (($today_day_of_week == 5 && $hour_now >= 13) || $today_day_of_week == 6 || $today_day_of_week == 0) {
+        // Calculate days until next Monday
+        if ($today_day_of_week == 5) { // Friday after 1pm
+            $min_delivery_date->modify('+3 days');
+        } elseif ($today_day_of_week == 6) { // Saturday
             $min_delivery_date->modify('+2 days');
-            // If +2 days lands on Saturday, push to Monday
-            if ($min_delivery_date->format('w') == 6) {
-                $min_delivery_date->modify('+2 days');
-            }
-            // If +2 days lands on Sunday, push to Monday
-            elseif ($min_delivery_date->format('w') == 0) {
-                $min_delivery_date->modify('+1 day');
-            }
-        }
-        // Before 1pm → tomorrow is minimum
-        else {
+        } else { // Sunday
             $min_delivery_date->modify('+1 day');
-            // If tomorrow is Saturday, push to Monday
-            if ($min_delivery_date->format('w') == 6) {
-                $min_delivery_date->modify('+2 days');
-            }
-            // If tomorrow is Sunday, push to Monday
-            elseif ($min_delivery_date->format('w') == 0) {
-                $min_delivery_date->modify('+1 day');
-            }
         }
-
-        // Validate: delivery date must be on or after minimum allowed date
-        $delivery_date_obj = new DateTime($delivery_date, new DateTimeZone('Australia/Brisbane'));
-        if ($delivery_date_obj < $min_delivery_date) {
-            $min_date_formatted = $min_delivery_date->format('l, F j, Y');
-            wc_add_notice(__("Delivery cutoff is 1PM. The earliest available delivery date is {$min_date_formatted}."), 'error');
-            return;
+    }
+    // Weekday (Mon-Thu) after 1pm → +2 days minimum
+    elseif ($hour_now >= 13) {
+        $min_delivery_date->modify('+2 days');
+        // If +2 days lands on Saturday, push to Monday
+        if ($min_delivery_date->format('w') == 6) {
+            $min_delivery_date->modify('+2 days');
         }
+        // If +2 days lands on Sunday, push to Monday
+        elseif ($min_delivery_date->format('w') == 0) {
+            $min_delivery_date->modify('+1 day');
+        }
+    }
+    // Before 1pm → tomorrow is minimum
+    else {
+        $min_delivery_date->modify('+1 day');
+        // If tomorrow is Saturday, push to Monday
+        if ($min_delivery_date->format('w') == 6) {
+            $min_delivery_date->modify('+2 days');
+        }
+        // If tomorrow is Sunday, push to Monday
+        elseif ($min_delivery_date->format('w') == 0) {
+            $min_delivery_date->modify('+1 day');
+        }
+    }
 
-        // Validate: check if the selected day is enabled for this customer
-        $user_id = get_current_user_id();
-        if ($user_id) {
-            $day_meta_map = array(
-                1 => 'monday',
-                2 => 'tuesday',
-                3 => 'wednesday',
-                4 => 'thursday',
-                5 => 'friday'
-            );
+    // Validate: delivery date must be on or after minimum allowed date
+    $delivery_date_obj = new DateTime($delivery_date, new DateTimeZone('Australia/Brisbane'));
+    if ($delivery_date_obj < $min_delivery_date) {
+        $min_date_formatted = $min_delivery_date->format('l, F j, Y');
+        wc_add_notice(__("Delivery cutoff is 1PM. The earliest available delivery date is {$min_date_formatted}."), 'error');
+        return;
+    }
 
-            if (isset($day_meta_map[$delivery_day_of_week])) {
-                $day_meta_key = $day_meta_map[$delivery_day_of_week];
-                $day_enabled = get_user_meta($user_id, $day_meta_key, true);
+    // Validate: check if the selected day is enabled for this customer
+    $user_id = get_current_user_id();
+    if ($user_id) {
+        $day_meta_map = array(
+            1 => 'monday',
+            2 => 'tuesday',
+            3 => 'wednesday',
+            4 => 'thursday',
+            5 => 'friday'
+        );
 
-                if ($day_enabled != '1') {
-                    $day_name = date('l', strtotime($delivery_date));
-                    wc_add_notice(__("{$day_name} is not available for delivery on your account. Please select one of your assigned delivery days."), 'error');
-                    return;
-                }
+        if (isset($day_meta_map[$delivery_day_of_week])) {
+            $day_meta_key = $day_meta_map[$delivery_day_of_week];
+            $day_enabled = get_user_meta($user_id, $day_meta_key, true);
+
+            if ($day_enabled != '1') {
+                $day_name = date('l', strtotime($delivery_date));
+                wc_add_notice(__("{$day_name} is not available for delivery on your account. Please select one of your assigned delivery days."), 'error');
+                return;
             }
         }
     }
+}
 
 // Display field value on the order edit page
 add_action('woocommerce_admin_order_data_after_billing_address', 'my_custom_checkout_field_display_admin_order_meta', 10, 1);
