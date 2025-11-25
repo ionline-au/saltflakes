@@ -2347,77 +2347,110 @@ if ($_SERVER['REMOTE_ADDR'] == '144.6.113.133') {
     function check_datetimepicker_field()
     {
         date_default_timezone_set('Australia/Brisbane');
-        $delivery_date = str_replace('/', '-', $_POST['delivery_date']);
-        $delivery_date = date('Y-m-d', strtotime($delivery_date));
-        $yesterday = date('Y-m-d', strtotime('-1 day'));
 
-        if (strtotime($delivery_date) < strtotime($yesterday)) {
-            wc_add_notice(__('You cannot select a date in the past.<br/>Please set the delivery date to a future date '), 'error');
-        }
-
-        if (!$_POST['delivery_date']) {
+        // Must have a delivery date
+        if (!isset($_POST['delivery_date']) || empty($_POST['delivery_date'])) {
             wc_add_notice(__('You must enter a delivery/pickup date'), 'error');
+            return;
         }
 
-        if ( isset( $_POST['delivery_date'] ) && !empty( $_POST['delivery_date'] ) ) {
+        // Parse the delivery date
+        $delivery_date_raw = str_replace('/', '-', $_POST['delivery_date']);
+        $delivery_date = date('Y-m-d', strtotime($delivery_date_raw));
 
-
-            // PHP's date('N') returns 6 for Saturday, 7 for Sunday
-            $dayOfWeek = date( 'N', strtotime($delivery_date));
-            $hour_now = date('H');
-
-            // validate if day is saturday or sunday
-            if ( $dayOfWeek == 6 || $dayOfWeek == 7 ) {
-                wc_add_notice( __( 'You select a '.date( 'l', strtotime($delivery_date)).' delivery-  weekends are not available for delivery.', '' ), 'error' );
-            }
-
-            // validate if today is friday and time is after 1pm
-            if($hour_now >= 13 && $dayOfWeek == 5 && $delivery_date == date('Y-m-d')){
-                wc_add_notice( __( "Delivery cutoff is 1PM, the next available delivery will be next week</br>"), 'error' );
-            }
-
-            // Validate date format (this example uses d/m/Y format, adjust as needed)
-            if (strtotime($delivery_date) === false || strtotime($delivery_date) === 0) {
-                wc_add_notice( __( 'Invalid date - please use this format dd/mm/yyy example '.date("01/01/Y")), 'error' );
-            }
-
-            // Check if current time is 1PM (13:00) or later AND delivery date is today
-            if ( $hour_now >= 13 && $delivery_date == date('Y-m-d') ) {
-
-                // monday to tuesday - delivery on next 2 days
-                if($dayOfWeek ==3 ){
-                    // Calculate the next available delivery date (2 days from today)
-                    $next_date = date('M d, Y', strtotime('+2 days'));
-
-                    // Show WooCommerce error notice to the customer
-                    wc_add_notice( __("Delivery cutoff is 1PM for next day delivery, the next available delivery will be from {$next_date} onwards."), 'error' );
-                }
-                // thursday - delivery on next 4 days because next day is no longer available
-                if($dayOfWeek ===4 ){
-                    // Calculate the next available delivery date (2 days from today)
-                    $next_date = date('M d, Y', strtotime('+4 days'));
-
-                    // Show WooCommerce error notice to the customer
-                    wc_add_notice( __("Delivery cutoff is 1PM for next day delivery, the next available delivery will be from {$next_date} onwards."), 'error' );
-                }
-                // friday - delivery on next 3 days because next 2 days is weekend
-                if($dayOfWeek === 5 ){
-                    $next_date = date('M d, Y', strtotime('+3 days'));
-
-                    // Show WooCommerce error notice to the customer
-                    wc_add_notice( __("Delivery cutoff is 1PM for, the next available delivery will be on Monday {$next_date} onwards."), 'error' );
-                }
-
-            }
-            $tomorrow = date('Y-m-d', strtotime('+1 day'));
-            if ( $hour_now >= 13 && $delivery_date == $tomorrow ) {
-                $next_date = date('M d, Y', strtotime('+2 days'));
-                wc_add_notice( __("Delivery cutoff is 1PM, the next available delivery will be on  {$next_date} onwards."), 'error' );
-
-            }
-
+        // Validate date format
+        if (strtotime($delivery_date_raw) === false || strtotime($delivery_date_raw) === 0) {
+            wc_add_notice(__('Invalid date - please use this format dd/mm/yyyy example ' . date('01/01/Y')), 'error');
+            return;
         }
 
+        // Get current time info
+        $hour_now = (int) date('H');
+        $today_day_of_week = (int) date('w'); // 0=Sun, 1=Mon, ..., 5=Fri, 6=Sat
+
+        // Get delivery date day of week (using 'w' for consistency: 0=Sun, 6=Sat)
+        $delivery_day_of_week = (int) date('w', strtotime($delivery_date));
+
+        // Validate: delivery date cannot be Saturday (6) or Sunday (0)
+        if ($delivery_day_of_week == 0 || $delivery_day_of_week == 6) {
+            wc_add_notice(__('Weekends are not available for delivery. Please select a weekday (Monday-Friday).'), 'error');
+            return;
+        }
+
+        /**
+         * Calculate minimum allowed delivery date based on:
+         * - Friday after 1pm, Saturday, Sunday → Monday is minimum
+         * - Weekday after 1pm → +2 days minimum (skip tomorrow)
+         * - Before 1pm → tomorrow is minimum
+         */
+        $min_delivery_date = new DateTime('today', new DateTimeZone('Australia/Brisbane'));
+
+        // Friday after 1pm, Saturday, or Sunday → Monday is minimum
+        if (($today_day_of_week == 5 && $hour_now >= 13) || $today_day_of_week == 6 || $today_day_of_week == 0) {
+            // Calculate days until next Monday
+            if ($today_day_of_week == 5) { // Friday after 1pm
+                $min_delivery_date->modify('+3 days');
+            } elseif ($today_day_of_week == 6) { // Saturday
+                $min_delivery_date->modify('+2 days');
+            } else { // Sunday
+                $min_delivery_date->modify('+1 day');
+            }
+        }
+        // Weekday (Mon-Thu) after 1pm → +2 days minimum
+        elseif ($hour_now >= 13) {
+            $min_delivery_date->modify('+2 days');
+            // If +2 days lands on Saturday, push to Monday
+            if ($min_delivery_date->format('w') == 6) {
+                $min_delivery_date->modify('+2 days');
+            }
+            // If +2 days lands on Sunday, push to Monday
+            elseif ($min_delivery_date->format('w') == 0) {
+                $min_delivery_date->modify('+1 day');
+            }
+        }
+        // Before 1pm → tomorrow is minimum
+        else {
+            $min_delivery_date->modify('+1 day');
+            // If tomorrow is Saturday, push to Monday
+            if ($min_delivery_date->format('w') == 6) {
+                $min_delivery_date->modify('+2 days');
+            }
+            // If tomorrow is Sunday, push to Monday
+            elseif ($min_delivery_date->format('w') == 0) {
+                $min_delivery_date->modify('+1 day');
+            }
+        }
+
+        // Validate: delivery date must be on or after minimum allowed date
+        $delivery_date_obj = new DateTime($delivery_date, new DateTimeZone('Australia/Brisbane'));
+        if ($delivery_date_obj < $min_delivery_date) {
+            $min_date_formatted = $min_delivery_date->format('l, F j, Y');
+            wc_add_notice(__("Delivery cutoff is 1PM. The earliest available delivery date is {$min_date_formatted}."), 'error');
+            return;
+        }
+
+        // Validate: check if the selected day is enabled for this customer
+        $user_id = get_current_user_id();
+        if ($user_id) {
+            $day_meta_map = array(
+                1 => 'monday',
+                2 => 'tuesday',
+                3 => 'wednesday',
+                4 => 'thursday',
+                5 => 'friday'
+            );
+
+            if (isset($day_meta_map[$delivery_day_of_week])) {
+                $day_meta_key = $day_meta_map[$delivery_day_of_week];
+                $day_enabled = get_user_meta($user_id, $day_meta_key, true);
+
+                if ($day_enabled != '1') {
+                    $day_name = date('l', strtotime($delivery_date));
+                    wc_add_notice(__("{$day_name} is not available for delivery on your account. Please select one of your assigned delivery days."), 'error');
+                    return;
+                }
+            }
+        }
     }
 
 }
@@ -2642,134 +2675,79 @@ function custom_function_checkout()
         <script>
             jQuery(document).ready(function ($) {
 
-
-
-
                 var available_days = <?php echo json_encode($available_del_date)?>;
-                //  console.log(available_days);
 
-                var disabledtimes_mapping = ["<?php echo date("m-d-Y")?>:10"];
-                var d = new Date();
-                var hr = d.getHours(); // => 9
-                // console.log("hr : "+hr);
-                //  console.log(disabledtimes_mapping);
-                // console.log(disabledtimes_mapping.indexOf(formatDate(d)+":"+d.getUTCHours())>-1);
+                /**
+                 * Calculate minimum delivery date dynamically based on:
+                 * - Friday after 1pm, Saturday, Sunday → Monday is minimum
+                 * - Weekday after 1pm → +2 days (skip tomorrow)
+                 * - Before 1pm → tomorrow is minimum
+                 * All dates must also skip weekends
+                 */
+                function getMinDeliveryDate() {
+                    var now = new Date();
+                    var dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+                    var hour = now.getHours();
+                    var minDate = new Date(now);
+
+                    // Reset time to start of day for comparison
+                    minDate.setHours(0, 0, 0, 0);
+
+                    // Friday after 1pm, Saturday, or Sunday → Monday is minimum
+                    if ((dayOfWeek === 5 && hour >= 13) || dayOfWeek === 6 || dayOfWeek === 0) {
+                        var daysUntilMonday;
+                        if (dayOfWeek === 5) { // Friday after 1pm
+                            daysUntilMonday = 3;
+                        } else if (dayOfWeek === 6) { // Saturday
+                            daysUntilMonday = 2;
+                        } else { // Sunday (dayOfWeek === 0)
+                            daysUntilMonday = 1;
+                        }
+                        minDate.setDate(minDate.getDate() + daysUntilMonday);
+                    }
+                    // Weekday (Mon-Thu) after 1pm → +2 days minimum (skip tomorrow)
+                    else if (hour >= 13) {
+                        minDate.setDate(minDate.getDate() + 2);
+                        // If +2 days lands on Saturday, push to Monday
+                        if (minDate.getDay() === 6) {
+                            minDate.setDate(minDate.getDate() + 2);
+                        }
+                        // If +2 days lands on Sunday, push to Monday
+                        else if (minDate.getDay() === 0) {
+                            minDate.setDate(minDate.getDate() + 1);
+                        }
+                    }
+                    // Before 1pm → tomorrow is minimum
+                    else {
+                        minDate.setDate(minDate.getDate() + 1);
+                        // If tomorrow is Saturday, push to Monday
+                        if (minDate.getDay() === 6) {
+                            minDate.setDate(minDate.getDate() + 2);
+                        }
+                        // If tomorrow is Sunday, push to Monday
+                        else if (minDate.getDay() === 0) {
+                            minDate.setDate(minDate.getDate() + 1);
+                        }
+                    }
+
+                    return minDate;
+                }
+
+                var minDeliveryDate = getMinDeliveryDate();
 
                 $("#delivery_date").datepicker({
                     dateFormat: 'dd/mm/yy',
-                    minDate: '1',
-                    onSelect: function (selectedDate) {
-
-                    },
-
-                    onRenderHour: function (date) {
-                        if (disabledtimes_mapping.indexOf(formatDate(date) + ":" + date.getUTCHours()) > -1) {
-                            // return ['disabled'];
-                        }
-                    },
+                    minDate: minDeliveryDate,
                     beforeShowDay: function (date) {
-                        var day = date.getDay();
+                        var day = date.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
 
-
-                        var day_now = date.getDate();
-                        var month = date.getMonth() + 1;
-                        var year = date.getFullYear();
-
-                        var day_to_check = day_now + "/" + month + "/" + year;
-
-                        <?php
-
-                        // set the timezone to Brisbane Australia
-                        //date_default_timezone_set('Australia/Brisbane');
-
-                        $hr = date("H");
-                        $day = date("N");
-                        $tomorrow_num = date("w", strtotime("+ 1 day"));
-                        $tomorrow_date = date("j/n/Y", strtotime("+ 1 day"));
-
-                        //get if date is friday
-                        $friday = 0;
-                        $monday = 0;
-
-                        if (date('D') == 'Fri') {
-                            $friday = 1;
-                        }
-
-
-                        ?>
-
-
-                        //console.log('debug $hr: <?php echo $hr; ?>');
-                        //console.log('debug $tomorrow_num: <?php echo $tomorrow_num; ?>');
-                        //console.log('debug $tomorrow_date: <?php echo $tomorrow_date; ?>');
-
-                        var tomorrow_date = "<?php echo $tomorrow_date;?>";
-                        if (day_to_check.trim() == tomorrow_date.trim()) {
-                            //console.log("same date : " + day_to_check);
-                            if (<?php echo $hr; ?> >= 13 )
-                            {
-                                //console.log("time >= 13 : " +<?php echo $hr?>);
-                                return [false, ""];
-                            }
-                        }
-                        <?php
-                        /* if($_SERVER['REMOTE_ADDR'] == '181.214.199.155'){
-                             $user_id =  get_current_user_id();
-                             if($user_id == "82"){
-
-                                     foreach ($available_del_date as $key => $value) {
-
-                                         if ($value == 1) {
-                                             if ($hr >= 11 && $day == 1) {
-                                                 echo "console.log('D:$day = H:$hr')\n";
-
-                                                 echo "return [false, ''];";
-                                             }else{
-                                                 echo "if (day == $key) {";
-                                                 echo "return [true, ''];";
-                                                 echo "}";
-                                             }
-                                         }
-
-                                     }
-                             }
-
-                         }*/?>
-
-
-                        /**
-                         * Loop all days and set if disable or not
-                         * */
-
-                        <?php
-
-                        // Loop all days and set if disable or not
-                        foreach ($available_del_date as $key => $value) {
-
-                        if ($value == 1) { ?>
-
-                        if (day === <?php echo $key?>) {
-                            if(day === 5 && <?php echo $hr?> >= 13) {
-                                // dont delete for debugging
-                                // console.log("("+day_to_check+" = "+"<?php echo date("j/n/Y",strtotime("+ 4 day"))?>"+")");
-
-                                // its friday after 1pm so disable friday and
-                                if(day_to_check === "<?php echo date("j/n/Y")?>"){
-                                    console.log("its friday and is cutoff <?php echo $hr?>");
-                                    return [false, ''];
-                                }
-
-                            }
-
+                        // Check if this day is enabled for this customer
+                        // available_days uses: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+                        if (available_days[day] === '1' || available_days[day] === 1) {
                             return [true, ''];
                         }
-                        <?php
-                        }
 
-                        } ?>
-                        //
-                        return [false, ""];
-
+                        return [false, ''];
                     }
                 });
 
