@@ -2488,7 +2488,8 @@ function my_custom_checkout_field_display_admin_order_meta($order)
                 var hr = d.getHours(); // => 9
 
                 $('#delivery_date').change(function () {
-                    var date = new Date($(this).val());
+                    var date = $(this).datepicker('getDate');
+                    if (!date) return; // No valid date selected
                     const day = date.getDay();
                     var disable_days = "\n";
                     $.each(available_days, function (days, status) {
@@ -2673,16 +2674,13 @@ function custom_function_checkout()
                     }
                 });
 
-
                 $.validator.addMethod("dateITA", function (value, element) {
                     return this.optional(element) || /^(0?[1-9]|[12][0-9]|3[01])\/(0?[1-9]|1[0-2])\/(19|20)\d\d$/.test(value);
                 }, "Please enter a valid date in the format dd/mm/yyyy");
 
-
-
-
                 $('#delivery_date').change(function () {
-                    var date = new Date($(this).val());
+                    var date = $(this).datepicker('getDate');
+                    if (!date) return; // No valid date selected
                     const day = date.getDay();
 
                     var disable_days = "\n";
@@ -2849,9 +2847,12 @@ function wc_recently_ordered_products()
 
                         echo "<ul class='products elementor-grid columns-3'>";
                         foreach ($top_products as $product_id) {
-
                             if ($x <= 12) {
                                 $product = wc_get_product($product_id);
+                                if (is_bool($product)) {
+                                    continue;
+                                }
+                                // if ($_SERVER['REMOTE_ADDR'] == '144.6.113.133') { echo '<pre>'; print_r($product); }
                                 $image = wp_get_attachment_image_src(get_post_thumbnail_id($product_id), 'single-post-thumbnail');
                                 ?>
                                 <li class="product">
