@@ -2303,21 +2303,20 @@ function check_datetimepicker_field()
 
     /**
      * Calculate minimum allowed delivery date based on:
-     * - Friday after 1pm, Saturday, Sunday → Monday is minimum
+     * - Friday after 1pm, Saturday, Sunday → Tuesday is minimum
      * - Weekday after 1pm → +2 days minimum (skip tomorrow)
      * - Before 1pm → tomorrow is minimum
      */
     $min_delivery_date = new DateTime('today', new DateTimeZone('Australia/Brisbane'));
 
-    // Friday after 1pm, Saturday, or Sunday → Monday is minimum
+    // Friday after 1pm, Saturday, Sunday → Tuesday
     if (($today_day_of_week == 5 && $hour_now >= 13) || $today_day_of_week == 6 || $today_day_of_week == 0) {
-        // Calculate days until next Monday
-        if ($today_day_of_week == 5) { // Friday after 1pm
+        if ($today_day_of_week == 5) { // Friday after 1pm → Tuesday
+            $min_delivery_date->modify('+4 days');
+        } elseif ($today_day_of_week == 6) { // Saturday → Tuesday
             $min_delivery_date->modify('+3 days');
-        } elseif ($today_day_of_week == 6) { // Saturday
+        } else { // Sunday → Tuesday
             $min_delivery_date->modify('+2 days');
-        } else { // Sunday
-            $min_delivery_date->modify('+1 day');
         }
     }
     // Weekday (Mon-Thu) after 1pm → +2 days minimum
@@ -2616,17 +2615,17 @@ function custom_function_checkout()
                     // Reset time to start of day for comparison
                     minDate.setHours(0, 0, 0, 0);
 
-                    // Friday after 1pm, Saturday, or Sunday → Monday is minimum
+                    // Friday after 1pm, Saturday, or Sunday → Tuesday is minimum
                     if ((dayOfWeek === 5 && hour >= 13) || dayOfWeek === 6 || dayOfWeek === 0) {
-                        var daysUntilMonday;
-                        if (dayOfWeek === 5) { // Friday after 1pm
-                            daysUntilMonday = 3;
-                        } else if (dayOfWeek === 6) { // Saturday
-                            daysUntilMonday = 2;
-                        } else { // Sunday (dayOfWeek === 0)
-                            daysUntilMonday = 1;
+                        var daysToAdd;
+                        if (dayOfWeek === 5) { // Friday after 1pm → Tuesday
+                            daysToAdd = 4;
+                        } else if (dayOfWeek === 6) { // Saturday → Tuesday
+                            daysToAdd = 3;
+                        } else { // Sunday (dayOfWeek === 0) → Tuesday
+                            daysToAdd = 2;
                         }
-                        minDate.setDate(minDate.getDate() + daysUntilMonday);
+                        minDate.setDate(minDate.getDate() + daysToAdd);
                     }
                     // Weekday (Mon-Thu) after 1pm → +2 days minimum (skip tomorrow)
                     else if (hour >= 13) {
